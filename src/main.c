@@ -1,6 +1,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 
 #include <pico/stdlib.h>
 
@@ -10,172 +11,203 @@
 
 #include "tkjhat/sdk.h"
 
-// Exercise 4. Include the libraries necessaries to use the usb-serial-debug, and tinyusb
-// Tehtävä 4 . Lisää usb-serial-debugin ja tinyusbin käyttämiseen tarvittavat kirjastot.
-
-
-
 #define DEFAULT_STACK_SIZE 2048
 #define CDC_ITF_TX      1
+#define INPUT_BUFFER_SIZE 256
+#define OUTPUT_BUFFER_SIZE 256
 
+enum state { IDLE=1, READ_SENSOR, SEND_MESSAGE, RECEIVE_MESSAGE, PROCESS_MESSAGE};
+enum state currentState = IDLE;
 
-// Tehtävä 3: Tilakoneen esittely Add missing states.
-// Exercise 3: Definition of the state machine. Add missing states.
-enum state { WAITING=1};
-enum state programState = WAITING;
+char tx_message[OUTPUT_BUFFER_SIZE];
+char rx_message[INPUT_BUFFER_SIZE];
 
-// Tehtävä 3: Valoisuuden globaali muuttuja
-// Exercise 3: Global variable for ambient light
-uint32_t ambientLight;
-
-static void btn_fxn(uint gpio, uint32_t eventMask) {
-    // Tehtävä 1: Vaihda LEDin tila.
-    //            Tarkista SDK, ja jos et löydä vastaavaa funktiota, sinun täytyy toteuttaa se itse.
-    // Exercise 1: Toggle the LED. 
-    //             Check the SDK and if you do not find a function you would need to implement it yourself. 
-}
+uint8_t message_len = 0;
+uint8_t consecutive_spaces = 0;
 
 static void sensor_task(void *arg){
     (void)arg;
-    // Tehtävä 2: Alusta valoisuusanturi. Etsi SDK-dokumentaatiosta sopiva funktio.
-    // Exercise 2: Init the light sensor. Find in the SDK documentation the adequate function.
-   
-    for(;;){
+    // init
+
+    // Setting up the sensor. 
+    if (init_ICM42670() == 0) {
+        printf("ICM-42670P initialized successfully!\n");
+        if (ICM42670_start_with_default_values() != 0){
+            printf("ICM-42670P could not initialize accelerometer or gyroscope");
+        }
+        /*int _enablegyro = ICM42670_enable_accel_gyro_ln_mode();
+        printf ("Enable gyro: %d\n",_enablegyro);
+        int _gyro = ICM42670_startGyro(ICM42670_GYRO_ODR_DEFAULT, ICM42670_GYRO_FSR_DEFAULT);
+        printf ("Gyro return:  %d\n", _gyro);
+        int _accel = ICM42670_startAccel(ICM42670_ACCEL_ODR_DEFAULT, ICM42670_ACCEL_FSR_DEFAULT);
+        printf ("Accel return:  %d\n", _accel);*/
+    } else {
+        printf("Failed to initialize ICM-42670P.\n");
+    }
+
+    enum sensor_read {NO_MOTION, MOTION_HAPPENED};
+    enum sensor_read imu_sensor_motion = NO_MOTION;
+
+    while(1){
         
-        // Tehtävä 2: Muokkaa tästä eteenpäin sovelluskoodilla. Kommentoi seuraava rivi.
-        //             
-        // Exercise 2: Modify with application code here. Comment following line.
-        //             Read sensor data and print it out as string; 
-        tight_loop_contents(); 
+        //sensor task jutut
+        if (currentState == IDLE) {
+            currentState = READ_SENSOR;
+            
+            float ax, ay, az, gx, gy, gz, t;
+
+            if (ICM42670_read_sensor_data(&ax, &ay, &az, &gx, &gy, &gz, &t) == 0) {
+            
+                // printf("Accel: X=%f, Y=%f, Z=%f | Gyro: X=%f, Y=%f, Z=%f| Temp: %2.2f°C\n", ax, ay, az, gx, gy, gz, t);
+                if (ax != -4.0f) {
+
+                    if (abs(gx) < 150.0f && abs(gy) < 150.0f && abs(gz) < 150.0f) {
+
+                        if (ax < -1.0f) {
+                            imu_sensor_motion = MOTION_HAPPENED;
+                            printf(".\n");
+                            printf("Accel: X=%f, Y=%f, Z=%f | Gyro: X=%f, Y=%f, Z=%f| Temp: %2.2f°C\n", ax, ay, az, gx, gy, gz, t);
+                        } else if (ay > 0.0f) {
+                            imu_sensor_motion = MOTION_HAPPENED;
+                            printf("-\n");
+                            printf("Accel: X=%f, Y=%f, Z=%f | Gyro: X=%f, Y=%f, Z=%f| Temp: %2.2f°C\n", ax, ay, az, gx, gy, gz, t);
+                        }else if (az > 1.0f) {
+                            imu_sensor_motion = MOTION_HAPPENED;
+                            printf(" (space)\n");
+                            printf("Accel: X=%f, Y=%f, Z=%f | Gyro: X=%f, Y=%f, Z=%f| Temp: %2.2f°C\n", ax, ay, az, gx, gy, gz, t);
+                        }
+
+                    }
+
+                }
 
 
-   
+            } else {
+                printf("Failed to read imu data\n");
+            }
 
-
-        // Tehtävä 3:  Muokkaa aiemmin Tehtävässä 2 tehtyä koodia ylempänä.
-        //             Jos olet oikeassa tilassa, tallenna anturin arvo tulostamisen sijaan
-        //             globaaliin muuttujaan.
-        //             Sen jälkeen muuta tilaa.
-        // Exercise 3: Modify previous code done for Exercise 2, in previous lines. 
-        //             If you are in adequate state, instead of printing save the sensor value 
-        //             into the global variable.
-        //             After that, modify state
-
-
-
-
-
-        
-        // Exercise 2. Just for sanity check. Please, comment this out
-        // Tehtävä 2: Just for sanity check. Please, comment this out
-        printf("sensorTask\n");
+            currentState = IDLE;
+        }
 
         // Do not remove this
-        vTaskDelay(pdMS_TO_TICKS(1000));
+        if (imu_sensor_motion == NO_MOTION) {
+            vTaskDelay(pdMS_TO_TICKS(50));
+        } else {
+            imu_sensor_motion = NO_MOTION;
+            vTaskDelay(pdMS_TO_TICKS(500));
+        }
     }
 }
 
-static void print_task(void *arg){
+static void send_task(void *arg){
     (void)arg;
     
     while(1){
+        /*
+        if (button_pressed) {
+             for (int i = 0; hellotext[i] != NULL; i++) {
+                printf("%s", hellotext[i]);
+            }
+            button_pressed = false;
+        }
+        if (debug_pressed){
+            for (int i = 0; hellotext_debug[i] != NULL; i++) {
+                printf("%s", hellotext_debug[i]);
+            }
+            debug_pressed = false;
+        }
+        */
+        vTaskDelay(pdMS_TO_TICKS(500));
+    }
+}
+
+static void receive_task(void *arg){
+    (void)arg;
+    char line[INPUT_BUFFER_SIZE];
+    size_t index = 0;
+    
+    while (1){
+        //OPTION 1
+        // Using getchar_timeout_us https://www.raspberrypi.com/documentation/pico-sdk/runtime.html#group_pico_stdio_1ga5d24f1a711eba3e0084b6310f6478c1a
+        // take one char per time and store it in line array, until reeceived the \n
+        // The application should instead play a sound, or blink a LED. 
+
+        /*
+        int c = getchar_timeout_us(0);
+        if (c != PICO_ERROR_TIMEOUT){// I have received a character
+            if (c == '\r') continue; // ignore CR, wait for LF if (ch == '\n') { line[len] = '\0';
+            if (c == '\n'){
+                // terminate and process the collected line
+                line[index] = '\0'; 
+                printf("__[RX]:\"%s\"__\n", line); //Print as debug in the output
+                index = 0;
+                vTaskDelay(pdMS_TO_TICKS(100)); // Wait for new message
+            }
+            else if(index < INPUT_BUFFER_SIZE - 1){
+                line[index++] = (char)c;
+            }
+            else { //Overflow: print and restart the buffer with the new character. 
+                line[INPUT_BUFFER_SIZE - 1] = '\0';
+                printf("__[RX]:\"%s\"__\n", line);
+                index = 0; 
+                line[index++] = (char)c; 
+            }
+        }
+        else {
+            vTaskDelay(pdMS_TO_TICKS(100)); // Wait for new message
+        }*/
+
+        vTaskDelay(pdMS_TO_TICKS(1000)); // Wait for new message
+
+
+        //OPTION 2. Use the whole buffer. 
+        /*absolute_time_t next = delayed_by_us(get_absolute_time,500);//Wait 500 us
+        int read = stdio_get_until(line,INPUT_BUFFER_SIZE,next);
+        if (read == PICO_ERROR_TIMEOUT){
+            vTaskDelay(pdMS_TO_TICKS(100)); // Wait for new message
+        }
+        else {
+            line[read] = '\0'; //Last character is 0
+            printf("__[RX] \"%s\"\n__", line);
+            vTaskDelay(pdMS_TO_TICKS(50));
+        }*/
+    }
+
+}
+
+// Handling display update
+void process_task(void *pvParameters) {
+
+    while (1) {
+    
+        if (currentState == PROCESS_MESSAGE) {
         
-        // Tehtävä 3: Kun tila on oikea, tulosta sensoridata merkkijonossa debug-ikkunaan
-        //            Muista tilamuutos
-        //            Älä unohda kommentoida seuraavaa koodiriviä.
-        // Exercise 3: Print out sensor data as string to debug window if the state is correct
-        //             Remember to modify state
-        //             Do not forget to comment next line of code.
-        tight_loop_contents();
-        
-
-
-        
-        // Exercise 4. Use the usb_serial_print() instead of printf or similar in the previous line.
-        //             Check the rest of the code that you do not have printf (substitute them by usb_serial_print())
-        //             Use the TinyUSB library to send data through the other serial port (CDC 1).
-        //             You can use the functions at https://github.com/hathach/tinyusb/blob/master/src/class/cdc/cdc_device.h
-        //             You can find an example at hello_dual_cdc
-        //             The data written using this should be provided using csv
-        //             timestamp, luminance
-        // Tehtävä 4. Käytä usb_serial_print()-funktiota printf:n tai vastaavien sijaan edellisellä rivillä.
-        //            Tarkista myös muu koodi ja varmista, ettei siinä ole printf-kutsuja
-        //            (korvaa ne usb_serial_print()-funktiolla).
-        //            Käytä TinyUSB-kirjastoa datan lähettämiseen toisen sarjaportin (CDC 1) kautta.
-        //            Voit käyttää funktioita: https://github.com/hathach/tinyusb/blob/master/src/class/cdc/cdc_device.h
-        //            Esimerkki löytyy hello_dual_cdc-projektista.
-        //            Tällä menetelmällä kirjoitettu data tulee antaa CSV-muodossa:
-        //            timestamp, luminance
-
-
-
-
-        // Exercise 3. Just for sanity check. Please, comment this out
-        // Tehtävä 3: Just for sanity check. Please, comment this out
-        printf("printTask\n");
-        
-        // Do not remove this
+            // Functionality of state
+            //update_screen();
+            
+            // State transition UPDATE -> IDLE
+            currentState = IDLE;
+        }
+    
         vTaskDelay(pdMS_TO_TICKS(1000));
     }
 }
 
 
-// Exercise 4: Uncomment the following line to activate the TinyUSB library.  
-// Tehtävä 4:  Poista seuraavan rivin kommentointi aktivoidaksesi TinyUSB-kirjaston. 
-
-/*
-static void usbTask(void *arg) {
-    (void)arg;
-    while (1) {
-        tud_task();              // With FreeRTOS wait for events
-                                 // Do not add vTaskDelay. 
-    }
-}*/
-
 int main() {
-
-    // Exercise 4: Comment the statement stdio_init_all(); 
-    //             Instead, add AT THE END OF MAIN (before vTaskStartScheduler();) adequate statements to enable the TinyUSB library and the usb-serial-debug.
-    //             You can see hello_dual_cdc for help
-    //             In CMakeLists.txt add the cfg-dual-usbcdc
-    //             In CMakeLists.txt deactivate pico_enable_stdio_usb
-    // Tehtävä 4:  Kommentoi lause stdio_init_all();
-    //             Sen sijaan lisää MAIN LOPPUUN (ennen vTaskStartScheduler();) tarvittavat komennot aktivoidaksesi TinyUSB-kirjaston ja usb-serial-debugin.
-    //             Voit katsoa apua esimerkistä hello_dual_cdc.
-    //             Lisää CMakeLists.txt-tiedostoon cfg-dual-usbcdc
-    //             Poista CMakeLists.txt-tiedostosta käytöstä pico_enable_stdio_usb
 
     stdio_init_all();
 
-    // Uncomment this lines if you want to wait till the serial monitor is connected
-    /*while (!stdio_usb_connected()){
+    // Wait till the serial monitor is connected
+    while (!stdio_usb_connected()){
         sleep_ms(10);
-    }*/ 
+    }
     
     init_hat_sdk();
     sleep_ms(300); //Wait some time so initialization of USB and hat is done.
 
-    // Exercise 1: Initialize the button and the led and define an register the corresponding interrupton.
-    //             Interruption handler is defined up as btn_fxn
-    // Tehtävä 1:  Alusta painike ja LEd ja rekisteröi vastaava keskeytys.
-    //             Keskeytyskäsittelijä on määritelty yläpuolella nimellä btn_fxn
-
-
-
     
-    
-    TaskHandle_t hSensorTask, hPrintTask, hUSB = NULL;
-
-    // Exercise 4: Uncomment this xTaskCreate to create the task that enables dual USB communication.
-    // Tehtävä 4: Poista tämän xTaskCreate-rivin kommentointi luodaksesi tehtävän,
-    // joka mahdollistaa kaksikanavaisen USB-viestinnän.
-
-    /*
-    xTaskCreate(usbTask, "usb", 2048, NULL, 3, &hUSB);
-    #if (configNUMBER_OF_CORES > 1)
-        vTaskCoreAffinitySet(hUSB, 1u << 0);
-    #endif
-    */
+    TaskHandle_t hSensorTask, hSendTask, hReceiveTask, hProcessTask = NULL;
 
 
     // Create the tasks with xTaskCreate
@@ -190,15 +222,40 @@ int main() {
         printf("Sensor task creation failed\n");
         return 0;
     }
-    result = xTaskCreate(print_task,  // (en) Task function
-                "print",              // (en) Name of the task 
+
+    result = xTaskCreate(send_task,  // (en) Task function
+                "send",              // (en) Name of the task 
                 DEFAULT_STACK_SIZE,   // (en) Size of the stack for this task (in words). Generally 1024 or 2048
                 NULL,                 // (en) Arguments of the task 
                 2,                    // (en) Priority of this task
-                &hPrintTask);         // (en) A handle to control the execution of this task
+                &hSendTask);         // (en) A handle to control the execution of this task
 
     if(result != pdPASS) {
-        printf("Print Task creation failed\n");
+        printf("Send Task creation failed\n");
+        return 0;
+    }
+    
+    result = xTaskCreate(receive_task,  // (en) Task function
+                "receive",              // (en) Name of the task 
+                DEFAULT_STACK_SIZE,   // (en) Size of the stack for this task (in words). Generally 1024 or 2048
+                NULL,                 // (en) Arguments of the task 
+                2,                    // (en) Priority of this task
+                &hReceiveTask);         // (en) A handle to control the execution of this task
+
+    if(result != pdPASS) {
+        printf("Receive Task creation failed\n");
+        return 0;
+    }
+    
+    result = xTaskCreate(process_task,  // (en) Task function
+                "process",              // (en) Name of the task 
+                DEFAULT_STACK_SIZE,   // (en) Size of the stack for this task (in words). Generally 1024 or 2048
+                NULL,                 // (en) Arguments of the task 
+                2,                    // (en) Priority of this task
+                &hProcessTask);         // (en) A handle to control the execution of this task
+
+    if(result != pdPASS) {
+        printf("Process Task creation failed\n");
         return 0;
     }
 
