@@ -1,7 +1,7 @@
 
 #include <stdio.h>
 #include <string.h>
-#include <stdlib.h>
+#include <math.h>
 
 #include <pico/stdlib.h>
 
@@ -15,6 +15,11 @@
 #define CDC_ITF_TX      1
 #define INPUT_BUFFER_SIZE 256
 #define OUTPUT_BUFFER_SIZE 256
+
+#define NO_MOTION_THRESHOLD 0.2f
+#define MOTION_THRESHOLD 1.0f
+#define OTHER_MOTION_THRESHOLD 0.7f
+#define AY_OFFSET 0.2f
 
 enum state { IDLE=1, READ_SENSOR, SEND_MESSAGE, RECEIVE_MESSAGE, PROCESS_MESSAGE};
 enum state currentState = IDLE;
@@ -45,8 +50,12 @@ static void sensor_task(void *arg){
         printf("Failed to initialize ICM-42670P.\n");
     }
 
-    enum sensor_read {NO_MOTION, MOTION_HAPPENED};
+    init_buzzer();
+
+    enum sensor_read {NO_MOTION, MOTION, MOTION_HAPPENED};
     enum sensor_read imu_sensor_motion = NO_MOTION;
+    
+    float ax, ay, az, gx, gy, gz, t;
 
     while(1){
         
@@ -54,27 +63,34 @@ static void sensor_task(void *arg){
         if (currentState == IDLE) {
             currentState = READ_SENSOR;
             
-            float ax, ay, az, gx, gy, gz, t;
 
             if (ICM42670_read_sensor_data(&ax, &ay, &az, &gx, &gy, &gz, &t) == 0) {
+
+                if (imu_sensor_motion == MOTION_HAPPENED && fabs(ax) < NO_MOTION_THRESHOLD && fabs(ay+1.0f) < NO_MOTION_THRESHOLD && fabs(az) < NO_MOTION_THRESHOLD) { // !(ax > 0.2f || ay > 0.8f ||  az > 0.2f)
+                    imu_sensor_motion = NO_MOTION;
+                }
             
                 // printf("Accel: X=%f, Y=%f, Z=%f | Gyro: X=%f, Y=%f, Z=%f| Temp: %2.2f°C\n", ax, ay, az, gx, gy, gz, t);
-                if (ax != -4.0f) {
+                if (ax != -4.0f && imu_sensor_motion == NO_MOTION) {
 
-                    if (abs(gx) < 150.0f && abs(gy) < 150.0f && abs(gz) < 150.0f) {
+                    if (fabs(gx) < 150.0f && fabs(gy) < 150.0f && fabs(gz) < 150.0f) {
 
-                        if (ax < -1.0f) {
-                            imu_sensor_motion = MOTION_HAPPENED;
+                        if (ax < -1.0f * MOTION_THRESHOLD && fabs(ay+1.0f) < OTHER_MOTION_THRESHOLD && fabs(az) < OTHER_MOTION_THRESHOLD) {
+                            imu_sensor_motion = MOTION;
                             printf(".\n");
                             printf("Accel: X=%f, Y=%f, Z=%f | Gyro: X=%f, Y=%f, Z=%f| Temp: %2.2f°C\n", ax, ay, az, gx, gy, gz, t);
-                        } else if (ay > 0.0f) {
-                            imu_sensor_motion = MOTION_HAPPENED;
+                            buzzer_play_tone (440, 200);
+                        } else if (ay+1 > MOTION_THRESHOLD - AY_OFFSET && fabs(ax) < OTHER_MOTION_THRESHOLD && fabs(az) < OTHER_MOTION_THRESHOLD) {
+                            imu_sensor_motion = MOTION;
                             printf("-\n");
                             printf("Accel: X=%f, Y=%f, Z=%f | Gyro: X=%f, Y=%f, Z=%f| Temp: %2.2f°C\n", ax, ay, az, gx, gy, gz, t);
-                        }else if (az > 1.0f) {
-                            imu_sensor_motion = MOTION_HAPPENED;
+                            buzzer_play_tone (300, 500);
+                        }else if (az > MOTION_THRESHOLD && fabs(ay+1.0f) < OTHER_MOTION_THRESHOLD && fabs(ax) < OTHER_MOTION_THRESHOLD) {
+                            imu_sensor_motion = MOTION;
                             printf(" (space)\n");
                             printf("Accel: X=%f, Y=%f, Z=%f | Gyro: X=%f, Y=%f, Z=%f| Temp: %2.2f°C\n", ax, ay, az, gx, gy, gz, t);
+                            buzzer_play_tone (350, 100);
+                            buzzer_play_tone (850, 100);
                         }
 
                     }
@@ -90,11 +106,11 @@ static void sensor_task(void *arg){
         }
 
         // Do not remove this
-        if (imu_sensor_motion == NO_MOTION) {
+        if (imu_sensor_motion != MOTION) {
             vTaskDelay(pdMS_TO_TICKS(50));
         } else {
-            imu_sensor_motion = NO_MOTION;
-            vTaskDelay(pdMS_TO_TICKS(500));
+            imu_sensor_motion = MOTION_HAPPENED;
+            vTaskDelay(pdMS_TO_TICKS(50));
         }
     }
 }
