@@ -16,11 +16,14 @@
 #define INPUT_BUFFER_SIZE 256
 #define OUTPUT_BUFFER_SIZE 256
 
+// Motion constants
 #define NO_MOTION_THRESHOLD 0.2f
 #define MOTION_THRESHOLD 1.0f
 #define OTHER_MOTION_THRESHOLD 0.7f
 #define AY_OFFSET 0.2f
+#define GYRO_THRESHOLD 150.0f
 
+// Program states
 enum state { IDLE=1, READ_SENSOR, SEND_MESSAGE, RECEIVE_MESSAGE, PROCESS_MESSAGE};
 enum state currentState = IDLE;
 
@@ -73,26 +76,52 @@ static void sensor_task(void *arg){
                 // printf("Accel: X=%f, Y=%f, Z=%f | Gyro: X=%f, Y=%f, Z=%f| Temp: %2.2f°C\n", ax, ay, az, gx, gy, gz, t);
                 if (ax != -4.0f && imu_sensor_motion == NO_MOTION) {
 
-                    if (fabs(gx) < 150.0f && fabs(gy) < 150.0f && fabs(gz) < 150.0f) {
+                    if (fabs(gx) < GYRO_THRESHOLD && fabs(gy) < GYRO_THRESHOLD && fabs(gz) < GYRO_THRESHOLD) {
 
                         if (ax < -1.0f * MOTION_THRESHOLD && fabs(ay+1.0f) < OTHER_MOTION_THRESHOLD && fabs(az) < OTHER_MOTION_THRESHOLD) {
                             imu_sensor_motion = MOTION;
-                            printf(".\n");
-                            printf("Accel: X=%f, Y=%f, Z=%f | Gyro: X=%f, Y=%f, Z=%f| Temp: %2.2f°C\n", ax, ay, az, gx, gy, gz, t);
+
+                            tx_message[message_len] = '.';
+                            message_len++;
+                            consecutive_spaces = 0;
+
+                            //printf(".\n");
+                            //printf("Accel: X=%f, Y=%f, Z=%f | Gyro: X=%f, Y=%f, Z=%f| Temp: %2.2f°C\n", ax, ay, az, gx, gy, gz, t);
+
+                            // Sound for dot
                             buzzer_play_tone (440, 200);
+
                         } else if (ay+1 > MOTION_THRESHOLD - AY_OFFSET && fabs(ax) < OTHER_MOTION_THRESHOLD && fabs(az) < OTHER_MOTION_THRESHOLD) {
                             imu_sensor_motion = MOTION;
-                            printf("-\n");
-                            printf("Accel: X=%f, Y=%f, Z=%f | Gyro: X=%f, Y=%f, Z=%f| Temp: %2.2f°C\n", ax, ay, az, gx, gy, gz, t);
+
+                            tx_message[message_len] = '-';
+                            message_len++;
+                            consecutive_spaces = 0;
+
+                            //printf("-\n");
+                            //printf("Accel: X=%f, Y=%f, Z=%f | Gyro: X=%f, Y=%f, Z=%f| Temp: %2.2f°C\n", ax, ay, az, gx, gy, gz, t);
+
+                            // Sound for dash
                             buzzer_play_tone (300, 500);
-                        }else if (az > MOTION_THRESHOLD && fabs(ay+1.0f) < OTHER_MOTION_THRESHOLD && fabs(ax) < OTHER_MOTION_THRESHOLD) {
+
+                        } else if (az > MOTION_THRESHOLD && fabs(ay+1.0f) < OTHER_MOTION_THRESHOLD && fabs(ax) < OTHER_MOTION_THRESHOLD) {
                             imu_sensor_motion = MOTION;
-                            printf(" (space)\n");
-                            printf("Accel: X=%f, Y=%f, Z=%f | Gyro: X=%f, Y=%f, Z=%f| Temp: %2.2f°C\n", ax, ay, az, gx, gy, gz, t);
+
+                            tx_message[message_len] = ' ';
+                            message_len++;
+                            consecutive_spaces++;
+
+                            //printf(" (space)\n");
+                            //printf("Accel: X=%f, Y=%f, Z=%f | Gyro: X=%f, Y=%f, Z=%f| Temp: %2.2f°C\n", ax, ay, az, gx, gy, gz, t);
+
+                            // Sound for space
                             buzzer_play_tone (350, 100);
                             buzzer_play_tone (850, 100);
                         }
 
+                        if (message_len == 255 || consecutive_spaces == 3) {
+                            currentState = SEND_MESSAGE;
+                        }
                     }
 
                 }
@@ -119,13 +148,14 @@ static void send_task(void *arg){
     (void)arg;
     
     while(1){
-        /*
-        if (button_pressed) {
-             for (int i = 0; hellotext[i] != NULL; i++) {
-                printf("%s", hellotext[i]);
+        
+        if (currentState == SEND_MESSAGE) {
+            for (int i = 0; tx_message[i] != NULL; i++) {
+                printf("%s", tx_message[i]);
             }
-            button_pressed = false;
+            currentState = IDLE;
         }
+        /*
         if (debug_pressed){
             for (int i = 0; hellotext_debug[i] != NULL; i++) {
                 printf("%s", hellotext_debug[i]);
@@ -137,9 +167,8 @@ static void send_task(void *arg){
     }
 }
 
-static void receive_task(void *arg){
+static void receive_task(void *arg) {
     (void)arg;
-    char line[INPUT_BUFFER_SIZE];
     size_t index = 0;
     
     while (1){
@@ -173,20 +202,30 @@ static void receive_task(void *arg){
             vTaskDelay(pdMS_TO_TICKS(100)); // Wait for new message
         }*/
 
-        vTaskDelay(pdMS_TO_TICKS(1000)); // Wait for new message
+        // vTaskDelay(pdMS_TO_TICKS(1000)); // Wait for new message
 
 
         //OPTION 2. Use the whole buffer. 
-        /*absolute_time_t next = delayed_by_us(get_absolute_time,500);//Wait 500 us
-        int read = stdio_get_until(line,INPUT_BUFFER_SIZE,next);
+        absolute_time_t next = delayed_by_us(get_absolute_time,500);//Wait 500 us
+        int read = stdio_get_until(rx_message, INPUT_BUFFER_SIZE, next);
         if (read == PICO_ERROR_TIMEOUT){
             vTaskDelay(pdMS_TO_TICKS(100)); // Wait for new message
         }
         else {
-            line[read] = '\0'; //Last character is 0
-            printf("__[RX] \"%s\"\n__", line);
+            rx_message[read] = '\0'; //Last character is 0
+            printf("__[RX] \"%s\"\n__", rx_message);
+            
+            buzzer_play_tone (600, 200);
+            buzzer_play_tone (400, 200);
+            buzzer_play_tone (600, 200);
+            buzzer_play_tone (400, 200);
+            buzzer_play_tone (600, 200);
+            buzzer_play_tone (400, 200);
+            buzzer_play_tone (600, 200);
+            buzzer_play_tone (400, 200);
+
             vTaskDelay(pdMS_TO_TICKS(50));
-        }*/
+        }
     }
 
 }
@@ -194,14 +233,42 @@ static void receive_task(void *arg){
 // Handling display update
 void process_task(void *pvParameters) {
 
+    init_display();
+
     while (1) {
     
         if (currentState == PROCESS_MESSAGE) {
         
-            // Functionality of state
-            //update_screen();
+            for (int i = 0; rx_message[i] != NULL; i++) {
+                switch (rx_message[i])
+                {
+                case '.':
+                    draw_circle(64, 32, 5, true);
+                    buzzer_play_tone (440, 200);
+                    break;
+
+                case '-':
+                    draw_square(32, 24, 64, 16, true);
+                    buzzer_play_tone (300, 500);
+                    break;
+                    
+                case ' ':
+                    buzzer_play_tone (350, 100);
+                    buzzer_play_tone (850, 100);
+                    break;
+                
+                default:
+                    char buf[2]; //Store a number of maximum 5 figures 
+                    sprintf(buf, "%s", rx_message[i]);
+                    write_text_xy(58, 26, buf);
+                    buzzer_play_tone (200, 400);
+                    break;
+                }
+
+                clear_display();
+            }
             
-            // State transition UPDATE -> IDLE
+            clear_display();
             currentState = IDLE;
         }
     
