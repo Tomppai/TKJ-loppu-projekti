@@ -27,11 +27,15 @@
 enum state { IDLE=1, READ_SENSOR, SEND_MESSAGE, RECEIVE_MESSAGE, PROCESS_MESSAGE};
 enum state currentState = IDLE;
 
+enum note {C=1, Csharp, D, Dsharp, E, F, Fsharp, G, Gsharp, A, Asharp, B};
+
 char tx_message[OUTPUT_BUFFER_SIZE];
 char rx_message[INPUT_BUFFER_SIZE];
 
 uint8_t message_len = 0;
 uint8_t consecutive_spaces = 0;
+
+void play_note(enum note cur_note, int octave, int duration);
 
 static void sensor_task(void *arg){
     (void)arg;
@@ -39,7 +43,7 @@ static void sensor_task(void *arg){
 
     // Setting up the sensor. 
     if (init_ICM42670() == 0) {
-        printf("ICM-42670P initialized successfully!\n");
+        //printf("ICM-42670P initialized successfully!\n");
         if (ICM42670_start_with_default_values() != 0){
             printf("ICM-42670P could not initialize accelerometer or gyroscope");
         }
@@ -73,7 +77,7 @@ static void sensor_task(void *arg){
                     imu_sensor_motion = NO_MOTION;
                 }
             
-                // printf("Accel: X=%f, Y=%f, Z=%f | Gyro: X=%f, Y=%f, Z=%f| Temp: %2.2f°C\n", ax, ay, az, gx, gy, gz, t);
+                //printf("Accel: X=%f, Y=%f, Z=%f | Gyro: X=%f, Y=%f, Z=%f| Temp: %2.2f°C\n", ax, ay, az, gx, gy, gz, t);
                 if (ax != -4.0f && imu_sensor_motion == NO_MOTION) {
 
                     if (fabs(gx) < GYRO_THRESHOLD && fabs(gy) < GYRO_THRESHOLD && fabs(gz) < GYRO_THRESHOLD) {
@@ -111,7 +115,6 @@ static void sensor_task(void *arg){
                             message_len++;
                             consecutive_spaces++;
 
-                            //printf(" (space)\n");
                             //printf("Accel: X=%f, Y=%f, Z=%f | Gyro: X=%f, Y=%f, Z=%f| Temp: %2.2f°C\n", ax, ay, az, gx, gy, gz, t);
 
                             // Sound for space
@@ -119,9 +122,6 @@ static void sensor_task(void *arg){
                             buzzer_play_tone (850, 100);
                         }
 
-                        if (message_len == 255 || consecutive_spaces == 3) {
-                            currentState = SEND_MESSAGE;
-                        }
                     }
 
                 }
@@ -130,8 +130,18 @@ static void sensor_task(void *arg){
             } else {
                 printf("Failed to read imu data\n");
             }
-
-            currentState = IDLE;
+            
+            if (message_len == 254 || consecutive_spaces == 3) {
+                tx_message[message_len+1] = '\0';
+                consecutive_spaces = 0;
+                message_len = 0;
+                
+                currentState = SEND_MESSAGE;
+            } else {
+                if (currentState == READ_SENSOR) {
+                    currentState = IDLE;
+                }
+            }
         }
 
         // Do not remove this
@@ -150,19 +160,13 @@ static void send_task(void *arg){
     while(1){
         
         if (currentState == SEND_MESSAGE) {
-            for (int i = 0; tx_message[i] != NULL; i++) {
-                printf("%s", tx_message[i]);
+            for (int i = 0; tx_message[i] != '\0'; i++) {
+                printf("%c", tx_message[i]);
             }
+            printf("\n");
             currentState = IDLE;
         }
-        /*
-        if (debug_pressed){
-            for (int i = 0; hellotext_debug[i] != NULL; i++) {
-                printf("%s", hellotext_debug[i]);
-            }
-            debug_pressed = false;
-        }
-        */
+        
         vTaskDelay(pdMS_TO_TICKS(500));
     }
 }
@@ -172,59 +176,40 @@ static void receive_task(void *arg) {
     size_t index = 0;
     
     while (1){
-        //OPTION 1
-        // Using getchar_timeout_us https://www.raspberrypi.com/documentation/pico-sdk/runtime.html#group_pico_stdio_1ga5d24f1a711eba3e0084b6310f6478c1a
-        // take one char per time and store it in line array, until reeceived the \n
-        // The application should instead play a sound, or blink a LED. 
 
-        /*
-        int c = getchar_timeout_us(0);
-        if (c != PICO_ERROR_TIMEOUT){// I have received a character
-            if (c == '\r') continue; // ignore CR, wait for LF if (ch == '\n') { line[len] = '\0';
-            if (c == '\n'){
-                // terminate and process the collected line
-                line[index] = '\0'; 
-                printf("__[RX]:\"%s\"__\n", line); //Print as debug in the output
-                index = 0;
+        // Use the whole buffer. 
+        if (currentState == IDLE) {
+
+            absolute_time_t next = delayed_by_us(get_absolute_time(), 500);//Wait 500 us
+            int read = stdio_get_until(rx_message, INPUT_BUFFER_SIZE, next);
+            if (read == PICO_ERROR_TIMEOUT){
                 vTaskDelay(pdMS_TO_TICKS(100)); // Wait for new message
             }
-            else if(index < INPUT_BUFFER_SIZE - 1){
-                line[index++] = (char)c;
+            else {
+                rx_message[read] = '\0'; //Last character is 0
+                printf("__[RX] \"%s\"__\n", rx_message);
+
+                write_text("Tomp call");
+                
+                play_note(E, 6, 150);
+                play_note(D, 6, 150);
+                play_note(Fsharp, 5, 300);
+                play_note(Gsharp, 5, 300);
+                play_note(Csharp, 6, 150);
+                play_note(B, 5, 150);
+                play_note(D, 5, 300);
+                play_note(E, 5, 300);
+                play_note(B, 5, 150);
+                play_note(A, 5, 150);
+                play_note(Csharp, 5, 300);
+                play_note(E, 5, 300);
+                play_note(A, 5, 600);
+    
+                currentState = PROCESS_MESSAGE;
+                clear_display();
+    
+                vTaskDelay(pdMS_TO_TICKS(50));
             }
-            else { //Overflow: print and restart the buffer with the new character. 
-                line[INPUT_BUFFER_SIZE - 1] = '\0';
-                printf("__[RX]:\"%s\"__\n", line);
-                index = 0; 
-                line[index++] = (char)c; 
-            }
-        }
-        else {
-            vTaskDelay(pdMS_TO_TICKS(100)); // Wait for new message
-        }*/
-
-        // vTaskDelay(pdMS_TO_TICKS(1000)); // Wait for new message
-
-
-        //OPTION 2. Use the whole buffer. 
-        absolute_time_t next = delayed_by_us(get_absolute_time,500);//Wait 500 us
-        int read = stdio_get_until(rx_message, INPUT_BUFFER_SIZE, next);
-        if (read == PICO_ERROR_TIMEOUT){
-            vTaskDelay(pdMS_TO_TICKS(100)); // Wait for new message
-        }
-        else {
-            rx_message[read] = '\0'; //Last character is 0
-            printf("__[RX] \"%s\"\n__", rx_message);
-            
-            buzzer_play_tone (600, 200);
-            buzzer_play_tone (400, 200);
-            buzzer_play_tone (600, 200);
-            buzzer_play_tone (400, 200);
-            buzzer_play_tone (600, 200);
-            buzzer_play_tone (400, 200);
-            buzzer_play_tone (600, 200);
-            buzzer_play_tone (400, 200);
-
-            vTaskDelay(pdMS_TO_TICKS(50));
         }
     }
 
@@ -233,17 +218,15 @@ static void receive_task(void *arg) {
 // Handling display update
 void process_task(void *pvParameters) {
 
-    init_display();
-
     while (1) {
     
         if (currentState == PROCESS_MESSAGE) {
         
-            for (int i = 0; rx_message[i] != NULL; i++) {
+            for (int i = 0; rx_message[i] != '\0'; i++) {
                 switch (rx_message[i])
                 {
                 case '.':
-                    draw_circle(64, 32, 5, true);
+                    draw_circle(64, 32, 8, true);
                     buzzer_play_tone (440, 200);
                     break;
 
@@ -258,15 +241,27 @@ void process_task(void *pvParameters) {
                     break;
                 
                 default:
-                    char buf[2]; //Store a number of maximum 5 figures 
-                    sprintf(buf, "%s", rx_message[i]);
-                    write_text_xy(58, 26, buf);
-                    buzzer_play_tone (200, 400);
+                    char buf[2] = {rx_message[i], '\0'}; //Store a number of maximum 5 figures 
+                    // sprintf(buf, "%c", rx_message[i]);
+                    write_text(buf);
+                    buzzer_play_tone (200, 100);
                     break;
                 }
 
                 clear_display();
+                sleep_ms(130);
             }
+
+            play_note(D, 4, 200);
+            play_note(D, 4, 200);
+            play_note(D, 5, 400);
+            play_note(A, 4, 600);
+            play_note(Gsharp, 4, 400);
+            play_note(G, 4, 400);
+            play_note(F, 4, 400);
+            play_note(D, 4, 200);
+            play_note(F, 4, 200);
+            play_note(G, 4, 200);
             
             clear_display();
             currentState = IDLE;
@@ -274,6 +269,68 @@ void process_task(void *pvParameters) {
     
         vTaskDelay(pdMS_TO_TICKS(1000));
     }
+}
+
+void play_note(enum note cur_note, int octave, int duration) {
+    float frequency = 0.0f;
+    switch (cur_note)
+    {
+    
+    case C:
+        frequency = 16.35f;
+        break;
+
+    case Csharp:
+        frequency = 17.32f;
+        break;
+    
+    case D:
+        frequency = 18.35f;
+        break;
+
+    case Dsharp:
+        frequency = 19.45f;
+        break;
+    
+    case E:
+        frequency = 20.60f;
+        break;
+    
+    case F:
+        frequency = 21.83f;
+        break;
+
+    case Fsharp:
+        frequency = 23.12f;
+        break;
+    
+    case G:
+        frequency = 24.50f;
+        break;
+
+    case Gsharp:
+        frequency = 25.96f;
+        break;
+    
+    case A:
+        frequency = 27.50f;
+        break;
+
+    case Asharp:
+        frequency = 29.14f;
+        break;
+    
+    case B:
+        frequency = 30.87f;
+        break;
+    
+    default:
+        break;
+    }
+
+    frequency *= (float) pow(2, octave);
+
+    buzzer_play_tone (frequency, duration);
 }
 
 
@@ -287,7 +344,10 @@ int main() {
     }
     
     init_hat_sdk();
-    sleep_ms(300); //Wait some time so initialization of USB and hat is done.
+    sleep_ms(400); //Wait some time so initialization of USB and hat is done.
+    init_display();
+    sleep_ms(400); //Wait some time so initialization of USB and hat is done.
+    clear_display();
 
     
     TaskHandle_t hSensorTask, hSendTask, hReceiveTask, hProcessTask = NULL;
