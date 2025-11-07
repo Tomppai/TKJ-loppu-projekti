@@ -11,6 +11,10 @@
 
 #include "tkjhat/sdk.h"
 
+#include "incomingcall.h"
+#include "messagesent.h"
+#include "tmlogo.h"
+
 #define DEFAULT_STACK_SIZE 2048
 #define CDC_ITF_TX      1
 #define INPUT_BUFFER_SIZE 256
@@ -22,6 +26,8 @@
 #define OTHER_MOTION_THRESHOLD 0.7f
 #define AY_OFFSET 0.2f
 #define GYRO_THRESHOLD 150.0f
+
+void show_image(const uint8_t* data, const long size);
 
 // Program states
 enum state { IDLE=1, READ_SENSOR, SEND_MESSAGE, RECEIVE_MESSAGE, PROCESS_MESSAGE};
@@ -164,6 +170,21 @@ static void send_task(void *arg){
                 printf("%c", tx_message[i]);
             }
             printf("\n");
+
+            show_image(messagesent, messagesent_size);
+            // plays the super mario bros. theme
+            play_note(E, 4, 167);
+            playnote(E, 4, 167);
+            wait_ms(167);
+            play_note(E, 4, 167);
+            wait_ms(167);
+            play_note(C, 4, 167);
+            play_note(E, 4, 333);
+            play_note(G, 4, 333);
+            wait_ms(333);
+            play_note(G, 3, 333);
+
+            show_image(tmlogo, tmlogo_size);
             currentState = IDLE;
         }
         
@@ -189,8 +210,10 @@ static void receive_task(void *arg) {
                 rx_message[read] = '\0'; //Last character is 0
                 printf("__[RX] \"%s\"__\n", rx_message);
 
-                write_text("Tomp call");
-                
+                //write_text("Tomp call");
+                show_image(incomingcall, incomingcall_size);
+
+                // plays nokia ringtone
                 play_note(E, 6, 150);
                 play_note(D, 6, 150);
                 play_note(Fsharp, 5, 300);
@@ -207,7 +230,7 @@ static void receive_task(void *arg) {
     
                 currentState = PROCESS_MESSAGE;
                 clear_display();
-    
+                
                 vTaskDelay(pdMS_TO_TICKS(50));
             }
         }
@@ -252,6 +275,7 @@ void process_task(void *pvParameters) {
                 sleep_ms(130);
             }
 
+            // plays megalovania
             play_note(D, 4, 200);
             play_note(D, 4, 200);
             play_note(D, 5, 400);
@@ -263,12 +287,17 @@ void process_task(void *pvParameters) {
             play_note(F, 4, 200);
             play_note(G, 4, 200);
             
-            clear_display();
+            show_image(tmlogo, tmlogo_size);
             currentState = IDLE;
         }
     
         vTaskDelay(pdMS_TO_TICKS(1000));
     }
+}
+
+void show_image(const uint8_t* data, const long size) {
+    clear_display();
+    ssd1306_bmp_show_image(&disp, data, size);
 }
 
 void play_note(enum note cur_note, int octave, int duration) {
@@ -348,6 +377,17 @@ int main() {
     init_display();
     sleep_ms(400); //Wait some time so initialization of USB and hat is done.
     clear_display();
+    show_image(tmlogo, tmlogo_size);
+
+    // plays windows xp startup sound
+    play_note(Dsharp, 5, 450);
+    play_note(Dsharp, 4, 150);
+    play_note(Asharp, 4, 300);
+    play_note(Gsharp, 4, 300);
+    play_note(Dsharp, 4, 300);
+    play_note(Dsharp, 5, 300);
+    play_note(Asharp, 4, 600);
+
 
     
     TaskHandle_t hSensorTask, hSendTask, hReceiveTask, hProcessTask = NULL;
