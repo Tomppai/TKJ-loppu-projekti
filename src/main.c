@@ -11,9 +11,7 @@
 
 #include "tkjhat/sdk.h"
 
-#include "incomingcall.h"
-#include "messagesent.h"
-#include "tmlogo.h"
+#include "images.h"
 
 #define DEFAULT_STACK_SIZE 2048
 #define CDC_ITF_TX      1
@@ -26,8 +24,6 @@
 #define OTHER_MOTION_THRESHOLD 0.7f
 #define AY_OFFSET 0.2f
 #define GYRO_THRESHOLD 150.0f
-
-void show_image(const uint8_t* data, const long size);
 
 // Program states
 enum state { IDLE=1, READ_SENSOR, SEND_MESSAGE, RECEIVE_MESSAGE, PROCESS_MESSAGE};
@@ -62,8 +58,6 @@ static void sensor_task(void *arg){
     } else {
         printf("Failed to initialize ICM-42670P.\n");
     }
-
-    init_buzzer();
 
     enum sensor_read {NO_MOTION, MOTION, MOTION_HAPPENED};
     enum sensor_read imu_sensor_motion = NO_MOTION;
@@ -170,25 +164,27 @@ static void send_task(void *arg){
                 printf("%c", tx_message[i]);
             }
             printf("\n");
-
+            
+            clear_display();
             show_image(messagesent, messagesent_size);
             // plays the super mario bros. theme
             play_note(E, 4, 167);
-            playnote(E, 4, 167);
-            wait_ms(167);
             play_note(E, 4, 167);
-            wait_ms(167);
+            sleep_ms(167);
+            play_note(E, 4, 167);
+            sleep_ms(167);
             play_note(C, 4, 167);
             play_note(E, 4, 333);
             play_note(G, 4, 333);
-            wait_ms(333);
+            sleep_ms(333);
             play_note(G, 3, 333);
-
+            
+            clear_display();
             show_image(tmlogo, tmlogo_size);
             currentState = IDLE;
         }
         
-        vTaskDelay(pdMS_TO_TICKS(500));
+        vTaskDelay(pdMS_TO_TICKS(1000));
     }
 }
 
@@ -200,17 +196,20 @@ static void receive_task(void *arg) {
 
         // Use the whole buffer. 
         if (currentState == IDLE) {
+            currentState = RECEIVE_MESSAGE;
 
             absolute_time_t next = delayed_by_us(get_absolute_time(), 500);//Wait 500 us
             int read = stdio_get_until(rx_message, INPUT_BUFFER_SIZE, next);
             if (read == PICO_ERROR_TIMEOUT){
-                vTaskDelay(pdMS_TO_TICKS(100)); // Wait for new message
+                currentState = IDLE;
+                vTaskDelay(pdMS_TO_TICKS(300)); // Wait for new message
             }
             else {
                 rx_message[read] = '\0'; //Last character is 0
                 printf("__[RX] \"%s\"__\n", rx_message);
 
                 //write_text("Tomp call");
+                clear_display();
                 show_image(incomingcall, incomingcall_size);
 
                 // plays nokia ringtone
@@ -227,11 +226,12 @@ static void receive_task(void *arg) {
                 play_note(Csharp, 5, 300);
                 play_note(E, 5, 300);
                 play_note(A, 5, 600);
+
+                clear_display();
     
                 currentState = PROCESS_MESSAGE;
-                clear_display();
                 
-                vTaskDelay(pdMS_TO_TICKS(50));
+                vTaskDelay(pdMS_TO_TICKS(2000));
             }
         }
     }
@@ -274,6 +274,7 @@ void process_task(void *pvParameters) {
                 clear_display();
                 sleep_ms(130);
             }
+            sleep_ms(500);
 
             // plays megalovania
             play_note(D, 4, 200);
@@ -291,13 +292,8 @@ void process_task(void *pvParameters) {
             currentState = IDLE;
         }
     
-        vTaskDelay(pdMS_TO_TICKS(1000));
+        vTaskDelay(pdMS_TO_TICKS(2000));
     }
-}
-
-void show_image(const uint8_t* data, const long size) {
-    clear_display();
-    ssd1306_bmp_show_image(&disp, data, size);
 }
 
 void play_note(enum note cur_note, int octave, int duration) {
@@ -375,8 +371,11 @@ int main() {
     init_hat_sdk();
     sleep_ms(400); //Wait some time so initialization of USB and hat is done.
     init_display();
-    sleep_ms(400); //Wait some time so initialization of USB and hat is done.
+    sleep_ms(200); //Wait some time so initialization of USB and hat is done.
+    init_buzzer();
+    sleep_ms(200); //Wait some time so initialization of USB and hat is done.
     clear_display();
+    
     show_image(tmlogo, tmlogo_size);
 
     // plays windows xp startup sound

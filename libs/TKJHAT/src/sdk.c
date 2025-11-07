@@ -342,6 +342,18 @@ int get_microphone_samples(int16_t* buffer, size_t samples) {
     ssd1306_clear(&disp);
 }
 
+// Delete if not working
+void show_image(const uint8_t *data, const long size) {
+    // Clear the display
+    ssd1306_clear(&disp);
+    
+    ssd1306_bmp_show_image_with_offset(&disp, data, size, 0, 0);
+    ssd1306_show(&disp);
+
+    // Delay for 800 milliseconds
+    sleep_ms(800);
+}
+
 
 void write_text_xy(int16_t x0, int16_t y0, const char *text) {
     if (!text) return;

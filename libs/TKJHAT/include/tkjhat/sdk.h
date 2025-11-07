@@ -609,6 +609,8 @@ bool i2c_read(uint8_t addr, uint8_t *dst, size_t len, bool nostop);
  */
 void init_display(void);
 
+void show_image(const uint8_t *data, const long size);
+
 /**
  * @brief Write a text string centered-ish on the display.
  *
