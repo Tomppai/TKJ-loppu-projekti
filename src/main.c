@@ -29,15 +29,18 @@
 enum state { IDLE=1, READ_SENSOR, SEND_MESSAGE, RECEIVE_MESSAGE, PROCESS_MESSAGE};
 enum state currentState = IDLE;
 
-enum note {C=1, Csharp, D, Dsharp, E, F, Fsharp, G, Gsharp, A, Asharp, B};
-
 char tx_message[OUTPUT_BUFFER_SIZE];
 char rx_message[INPUT_BUFFER_SIZE];
 
 uint8_t message_len = 0;
 uint8_t consecutive_spaces = 0;
 
-void play_note(enum note cur_note, int octave, int duration);
+/*
+Ideas/todo:
+-play_tune: soittaa jonon nuotteja
+-write_txt: sellanen jossa voi myös muuttaa scale
+-napista vastaa "puheluun" 
+*/
 
 static void sensor_task(void *arg){
     (void)arg;
@@ -45,16 +48,9 @@ static void sensor_task(void *arg){
 
     // Setting up the sensor. 
     if (init_ICM42670() == 0) {
-        //printf("ICM-42670P initialized successfully!\n");
         if (ICM42670_start_with_default_values() != 0){
             printf("ICM-42670P could not initialize accelerometer or gyroscope");
         }
-        /*int _enablegyro = ICM42670_enable_accel_gyro_ln_mode();
-        printf ("Enable gyro: %d\n",_enablegyro);
-        int _gyro = ICM42670_startGyro(ICM42670_GYRO_ODR_DEFAULT, ICM42670_GYRO_FSR_DEFAULT);
-        printf ("Gyro return:  %d\n", _gyro);
-        int _accel = ICM42670_startAccel(ICM42670_ACCEL_ODR_DEFAULT, ICM42670_ACCEL_FSR_DEFAULT);
-        printf ("Accel return:  %d\n", _accel);*/
     } else {
         printf("Failed to initialize ICM-42670P.\n");
     }
@@ -144,13 +140,11 @@ static void sensor_task(void *arg){
             }
         }
 
-        // Do not remove this
-        if (imu_sensor_motion != MOTION) {
-            vTaskDelay(pdMS_TO_TICKS(50));
-        } else {
+        if (imu_sensor_motion == MOTION) {
             imu_sensor_motion = MOTION_HAPPENED;
-            vTaskDelay(pdMS_TO_TICKS(50));
         }
+
+        vTaskDelay(pdMS_TO_TICKS(50));
     }
 }
 
@@ -167,19 +161,19 @@ static void send_task(void *arg){
             
             clear_display();
             show_image(messagesent, messagesent_size);
+
             // plays the super mario bros. theme
-            play_note(E, 4, 167);
-            play_note(E, 4, 167);
+            play_note(note_E, 4, 167);
+            play_note(note_E, 4, 167);
             sleep_ms(167);
-            play_note(E, 4, 167);
+            play_note(note_E, 4, 167);
             sleep_ms(167);
-            play_note(C, 4, 167);
-            play_note(E, 4, 333);
-            play_note(G, 4, 333);
+            play_note(note_C, 4, 167);
+            play_note(note_E, 4, 333);
+            play_note(note_G, 4, 333);
             sleep_ms(333);
-            play_note(G, 3, 333);
+            play_note(note_G, 3, 333);
             
-            clear_display();
             show_image(tmlogo, tmlogo_size);
             currentState = IDLE;
         }
@@ -208,24 +202,22 @@ static void receive_task(void *arg) {
                 rx_message[read] = '\0'; //Last character is 0
                 printf("__[RX] \"%s\"__\n", rx_message);
 
-                //write_text("Tomp call");
-                clear_display();
                 show_image(incomingcall, incomingcall_size);
 
                 // plays nokia ringtone
-                play_note(E, 6, 150);
-                play_note(D, 6, 150);
-                play_note(Fsharp, 5, 300);
-                play_note(Gsharp, 5, 300);
-                play_note(Csharp, 6, 150);
-                play_note(B, 5, 150);
-                play_note(D, 5, 300);
-                play_note(E, 5, 300);
-                play_note(B, 5, 150);
-                play_note(A, 5, 150);
-                play_note(Csharp, 5, 300);
-                play_note(E, 5, 300);
-                play_note(A, 5, 600);
+                play_note(note_E, 6, 150);
+                play_note(note_D, 6, 150);
+                play_note(note_Fsharp, 5, 300);
+                play_note(note_Gsharp, 5, 300);
+                play_note(note_Csharp, 6, 150);
+                play_note(note_B, 5, 150);
+                play_note(note_D, 5, 300);
+                play_note(note_E, 5, 300);
+                play_note(note_B, 5, 150);
+                play_note(note_A, 5, 150);
+                play_note(note_Csharp, 5, 300);
+                play_note(note_E, 5, 300);
+                play_note(note_A, 5, 600);
 
                 clear_display();
     
@@ -264,8 +256,7 @@ void process_task(void *pvParameters) {
                     break;
                 
                 default:
-                    char buf[2] = {rx_message[i], '\0'}; //Store a number of maximum 5 figures 
-                    // sprintf(buf, "%c", rx_message[i]);
+                    char buf[2] = {rx_message[i], '\0'};
                     write_text(buf);
                     buzzer_play_tone (200, 100);
                     break;
@@ -277,16 +268,16 @@ void process_task(void *pvParameters) {
             sleep_ms(500);
 
             // plays megalovania
-            play_note(D, 4, 200);
-            play_note(D, 4, 200);
-            play_note(D, 5, 400);
-            play_note(A, 4, 600);
-            play_note(Gsharp, 4, 400);
-            play_note(G, 4, 400);
-            play_note(F, 4, 400);
-            play_note(D, 4, 200);
-            play_note(F, 4, 200);
-            play_note(G, 4, 200);
+            play_note(note_D, 4, 200);
+            play_note(note_D, 4, 200);
+            play_note(note_D, 5, 400);
+            play_note(note_A, 4, 600);
+            play_note(note_Gsharp, 4, 400);
+            play_note(note_G, 4, 400);
+            play_note(note_F, 4, 400);
+            play_note(note_D, 4, 200);
+            play_note(note_F, 4, 200);
+            play_note(note_G, 4, 200);
             
             show_image(tmlogo, tmlogo_size);
             currentState = IDLE;
@@ -294,68 +285,6 @@ void process_task(void *pvParameters) {
     
         vTaskDelay(pdMS_TO_TICKS(2000));
     }
-}
-
-void play_note(enum note cur_note, int octave, int duration) {
-    float frequency = 0.0f;
-    switch (cur_note)
-    {
-    
-    case C:
-        frequency = 16.35f;
-        break;
-
-    case Csharp:
-        frequency = 17.32f;
-        break;
-    
-    case D:
-        frequency = 18.35f;
-        break;
-
-    case Dsharp:
-        frequency = 19.45f;
-        break;
-    
-    case E:
-        frequency = 20.60f;
-        break;
-    
-    case F:
-        frequency = 21.83f;
-        break;
-
-    case Fsharp:
-        frequency = 23.12f;
-        break;
-    
-    case G:
-        frequency = 24.50f;
-        break;
-
-    case Gsharp:
-        frequency = 25.96f;
-        break;
-    
-    case A:
-        frequency = 27.50f;
-        break;
-
-    case Asharp:
-        frequency = 29.14f;
-        break;
-    
-    case B:
-        frequency = 30.87f;
-        break;
-    
-    default:
-        break;
-    }
-
-    frequency *= (float) pow(2, octave);
-
-    buzzer_play_tone (frequency, duration);
 }
 
 
@@ -374,23 +303,19 @@ int main() {
     sleep_ms(200); //Wait some time so initialization of USB and hat is done.
     init_buzzer();
     sleep_ms(200); //Wait some time so initialization of USB and hat is done.
-    clear_display();
     
     show_image(tmlogo, tmlogo_size);
 
     // plays windows xp startup sound
-    play_note(Dsharp, 5, 450);
-    play_note(Dsharp, 4, 150);
-    play_note(Asharp, 4, 300);
-    play_note(Gsharp, 4, 300);
-    play_note(Dsharp, 4, 300);
-    play_note(Dsharp, 5, 300);
-    play_note(Asharp, 4, 600);
+    play_note(note_Dsharp, 5, 450);
+    play_note(note_Dsharp, 4, 150);
+    play_note(note_Asharp, 4, 300);
+    play_note(note_Gsharp, 4, 300);
+    play_note(note_Dsharp, 4, 300);
+    play_note(note_Dsharp, 5, 300);
+    play_note(note_Asharp, 4, 600);
 
-
-    
     TaskHandle_t hSensorTask, hSendTask, hReceiveTask, hProcessTask = NULL;
-
 
     // Create the tasks with xTaskCreate
     BaseType_t result = xTaskCreate(sensor_task, // (en) Task function

@@ -208,6 +208,8 @@ SOFTWARE.
 #define ICM42670_GYRO_MODE_LN                   0x0C
 #define ICM42670_SENSOR_DATA_START_REG          0x09
 
+enum note {note_C=1, note_Csharp, note_D, note_Dsharp, note_E, note_F, note_Fsharp, note_G, note_Gsharp, note_A, note_Asharp, note_B};
+
 /* =========================
  *  Public function prototypes
  * ========================= */
@@ -406,6 +408,8 @@ void init_buzzer(void);
  *       toggling the pin for the entire duration.
  */
 void buzzer_play_tone(uint32_t frequency, uint32_t duration_ms);
+
+void play_note(enum note cur_note, int octave, int duration);
 
 /**
  * @brief Turn the buzzer off.
