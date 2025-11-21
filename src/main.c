@@ -22,7 +22,7 @@
 #define MOTION_THRESHOLD 1.2f
 #define OTHER_MOTION_THRESHOLD 0.6f
 #define AY_OFFSET 0.2f
-#define GYRO_THRESHOLD 200.0f
+#define GYRO_THRESHOLD 250.0f
 
 // Program states
 enum state { IDLE=1, READ_SENSOR, SEND_MESSAGE, RECEIVE_MESSAGE, PROCESS_MESSAGE};
@@ -103,7 +103,7 @@ static void sensor_task(void *arg){
                     }
                     
                     // space
-                    else if (az > MOTION_THRESHOLD && fabs(ay+1.0f) < OTHER_MOTION_THRESHOLD && fabs(ax) < OTHER_MOTION_THRESHOLD) {
+                    else if (az > MOTION_THRESHOLD && ay+1.0f < OTHER_MOTION_THRESHOLD && fabs(ax) < OTHER_MOTION_THRESHOLD) {
                         imu_sensor_motion = MOTION;
 
                         tx_message[message_len] = ' ';
