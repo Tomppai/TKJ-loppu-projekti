@@ -208,6 +208,7 @@ SOFTWARE.
 #define ICM42670_GYRO_MODE_LN                   0x0C
 #define ICM42670_SENSOR_DATA_START_REG          0x09
 
+// Enum values for different notes to play on buzzer. See play_note()
 enum note {note_C=1, note_Csharp, note_D, note_Dsharp, note_E, note_F, note_Fsharp, note_G, note_Gsharp, note_A, note_Asharp, note_B};
 
 /* =========================
@@ -409,7 +410,20 @@ void init_buzzer(void);
  */
 void buzzer_play_tone(uint32_t frequency, uint32_t duration_ms);
 
-void play_note(enum note cur_note, int octave, int duration);
+/**
+ * @brief Play a note on the buzzer.
+ *
+ * Selects the correct frequency for the note and the octave.
+ * Then plays the note for the duration.
+ *
+ * @param cur_note      The note symbol in note datatype. For example, note_D and note_Fsharp.
+ * @param octave        The octave of the note
+ * @param duration_ms   Duration of the note in milliseconds.
+ *
+ * @note This implementation is blocking: the CPU is kept busy
+ *       toggling the pin for the entire duration.
+ */
+void play_note(enum note cur_note, uint8_t octave, uint32_t duration_ms);
 
 /**
  * @brief Turn the buzzer off.
@@ -613,6 +627,17 @@ bool i2c_read(uint8_t addr, uint8_t *dst, size_t len, bool nostop);
  */
 void init_display(void);
 
+/**
+ * @brief Shows the given image on screen.
+ *
+ * Clears the display, shows the image and waits 800 ms.
+ *
+ * @param data Compressed array of data about the image.
+ * @param size Lenght of the array.
+ *
+ * @note This helper calls @c ssd1306_bmp_show_image_with_offset internally.
+ * @see https://github.com/daschr/pico-ssd1306?tab=readme-ov-file#draw-images
+ */
 void show_image(const uint8_t *data, const long size);
 
 /**

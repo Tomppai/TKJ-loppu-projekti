@@ -234,67 +234,69 @@ void stop_rgb_led(){
     }
 }
 
-void play_note(enum note cur_note, int octave, int duration) {
+void play_note(enum note cur_note, uint8_t octave, uint32_t duration_ms) {
     float frequency = 0.0f;
 
+    // Selects the correct frequency for the note
     switch (cur_note)
     {
     
-    case note_C:
-        frequency = 16.35f;
-        break;
+        case note_C:
+            frequency = 16.35f;
+            break;
 
-    case note_Csharp:
-        frequency = 17.32f;
-        break;
-    
-    case note_D:
-        frequency = 18.35f;
-        break;
+        case note_Csharp:
+            frequency = 17.32f;
+            break;
+        
+        case note_D:
+            frequency = 18.35f;
+            break;
 
-    case note_Dsharp:
-        frequency = 19.45f;
-        break;
-    
-    case note_E:
-        frequency = 20.60f;
-        break;
-    
-    case note_F:
-        frequency = 21.83f;
-        break;
+        case note_Dsharp:
+            frequency = 19.45f;
+            break;
+        
+        case note_E:
+            frequency = 20.60f;
+            break;
+        
+        case note_F:
+            frequency = 21.83f;
+            break;
 
-    case note_Fsharp:
-        frequency = 23.12f;
-        break;
-    
-    case note_G:
-        frequency = 24.50f;
-        break;
+        case note_Fsharp:
+            frequency = 23.12f;
+            break;
+        
+        case note_G:
+            frequency = 24.50f;
+            break;
 
-    case note_Gsharp:
-        frequency = 25.96f;
-        break;
-    
-    case note_A:
-        frequency = 27.50f;
-        break;
+        case note_Gsharp:
+            frequency = 25.96f;
+            break;
+        
+        case note_A:
+            frequency = 27.50f;
+            break;
 
-    case note_Asharp:
-        frequency = 29.14f;
-        break;
-    
-    case note_B:
-        frequency = 30.87f;
-        break;
-    
-    default:
-        break;
+        case note_Asharp:
+            frequency = 29.14f;
+            break;
+        
+        case note_B:
+            frequency = 30.87f;
+            break;
+        
+        default:
+            break;
     }
 
+    // Multiplies frequency based on the octave
     frequency *= (float) pow(2, octave);
 
-    buzzer_play_tone (frequency, duration);
+    buzzer_play_tone (frequency, duration_ms);
 }
 
  void buzzer_turn_off() {
@@ -405,11 +407,11 @@ int get_microphone_samples(int16_t* buffer, size_t samples) {
     ssd1306_clear(&disp);
 }
 
-// Delete if not working
 void show_image(const uint8_t *data, const long size) {
     // Clear the display
     clear_display();
     
+    // puts the image on display
     ssd1306_bmp_show_image_with_offset(&disp, data, size, 0, 0);  
     ssd1306_show(&disp);
 
