@@ -32,13 +32,6 @@ enum state currentState = IDLE;
 char tx_message[OUTPUT_BUFFER_SIZE];
 char rx_message[INPUT_BUFFER_SIZE];
 
-/*
-Ideas/todo:
--play_tune: soittaa jonon nuotteja
--write_txt: sellanen jossa voi myös muuttaa scale
--napista vastaa "puheluun" 
-*/
-
 // a task for reading the accelerometer and gyro to input dot/dash/space for a message
 static void sensor_task(void *arg){
 
@@ -71,7 +64,7 @@ static void sensor_task(void *arg){
             // read sensor and put the data into sensor variables
             if (ICM42670_read_sensor_data(&ax, &ay, &az, &gx, &gy, &gz, &t) == 0) {
                 // Next line is for analyzing the sensor data
-                // printf("Accel: X=%f, Y=%f, Z=%f | Gyro: X=%f, Y=%f, Z=%f\n", ax, ay, az, gx, gy, gz);
+                //printf("Accel: X=%f, Y=%f, Z=%f | Gyro: X=%f, Y=%f, Z=%f\n", ax, ay, az, gx, gy, gz);
                 
                 // changes the sensor state to NO_MOTION if MOTION_HAPPENED and acceleration values are low enough
                 if (imu_sensor_motion == MOTION_HAPPENED && fabs(ax) < NO_MOTION_THRESHOLD && fabs(ay+1.0f) < NO_MOTION_THRESHOLD && fabs(az) < NO_MOTION_THRESHOLD) {
@@ -132,7 +125,7 @@ static void sensor_task(void *arg){
             
             // checks if message is ready to be sent
             if (message_len == 254 || consecutive_spaces == 3) {
-                tx_message[message_len+1] = '\0';
+                tx_message[message_len] = '\0';
                 consecutive_spaces = 0;
                 message_len = 0;
                 
@@ -233,7 +226,7 @@ static void receive_task(void *arg) {
 
 }
 
-// processes the received message
+// outputs the received message
 void process_task(void *pvParameters) {
 
     while (1) {
