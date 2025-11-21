@@ -22,7 +22,7 @@
 #define MOTION_THRESHOLD 1.2f
 #define OTHER_MOTION_THRESHOLD 0.6f
 #define AY_OFFSET 0.2f
-#define GYRO_THRESHOLD 150.0f
+#define GYRO_THRESHOLD 200.0f
 
 // Program states
 enum state { IDLE=1, READ_SENSOR, SEND_MESSAGE, RECEIVE_MESSAGE, PROCESS_MESSAGE};
@@ -72,7 +72,7 @@ static void sensor_task(void *arg){
                 }
             
                 // checks that there is no motion and the device is not being rotated
-                if ((imu_sensor_motion == NO_MOTION) && (fabs(gx) < GYRO_THRESHOLD) && (fabs(gy) < GYRO_THRESHOLD) && (fabs(gz) < GYRO_THRESHOLD)) {
+                if ((imu_sensor_motion == NO_MOTION) && (fabs(gx)+ fabs(gy) + fabs(gz) < GYRO_THRESHOLD)) {
 
                     // dot
                     if (ax > MOTION_THRESHOLD && fabs(ay+1.0f) < OTHER_MOTION_THRESHOLD && fabs(az) < OTHER_MOTION_THRESHOLD) {
