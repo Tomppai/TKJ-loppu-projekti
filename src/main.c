@@ -203,7 +203,7 @@ static void receive_task(void *arg) {
             }
             else {
                 rx_message[read] = '\0'; //Last character is 0
-                printf("[RX] "%s"\n", rx_message);
+                printf("__[RX] \"%s\"__\n", rx_message);
 
                 show_image(incomingcall, incomingcall_size);
 
